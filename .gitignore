@@ -1,18 +1,11 @@
 __pycache__/
 .vscode
-
 outputs/
 temp.py
-
-# assets/
-
 temp_gpt2.py    
-
 smoothquart.py
-
-
 checkpoints/*
-
 output.wav
-
 logs/
+/*.txt
+!requirements.txt

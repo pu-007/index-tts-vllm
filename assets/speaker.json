@@ -1,6 +1,5 @@
 {
-    "jay_klee": [
-        "assets/jay_promptvn.wav",
-        "assets/vo_card_klee_endOfGame_fail_01.wav"
-    ]
+  "pu": ["assets/pu.wav"],
+  "cat": ["assets/cat.wav"],
+  "candy": ["assets/candy.wav"]
 }
