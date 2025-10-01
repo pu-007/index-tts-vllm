@@ -9,3 +9,5 @@ output.wav
 logs/
 /*.txt
 !requirements.txt
+
+/*.mp3
