@@ -6,13 +6,10 @@ import sys
 from datetime import datetime
 import os
 import logging
-import tempfile
 import shutil
 import subprocess
 import termios
-import time
 import tty
-import select
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -71,7 +68,10 @@ def process_text_content(input_text, shuffle=False, repeat=False):
     if not shuffle and not repeat:
         return input_text
 
-    lines = [line.strip() for line in input_text.strip().split('\n') if line.strip()]
+    lines = [
+        line.strip() for line in input_text.strip().split('\n')
+        if line.strip()
+    ]
 
     if shuffle:
         random.shuffle(lines)
@@ -103,8 +103,8 @@ def compress_audio(file_path):
 
     temp_output = f"{os.path.splitext(file_path)[0]}_compressed.mp3"
     command = [
-        'ffmpeg', '-i', file_path, '-y', '-ar', '32000', '-b:a', '48k', '-ac', '1',
-        temp_output
+        'ffmpeg', '-i', file_path, '-y', '-ar', '32000', '-b:a', '48k', '-ac',
+        '1', temp_output
     ]
 
     try:
@@ -219,38 +219,31 @@ def main():
                                        help='可用命令')
 
     voices_parser = subparsers.add_parser('voices', help='获取所有可用的语音角色')
-    voices_parser.add_argument(
-        '-u',
-        '--api-url',
-        default="http://localhost:8001/audio/voices",
-        help='API地址 (默认: %(default)s)')
+    voices_parser.add_argument('-u',
+                               '--api-url',
+                               default="http://localhost:8001/audio/voices",
+                               help='API地址 (默认: %(default)s)')
 
     tts_parser = subparsers.add_parser('tts', help='将文本转换为语音')
     tts_parser.add_argument('input_text', nargs='?', help='输入文本内容')
-    tts_parser.add_argument(
-        '-m',
-        '--model',
-        default='kusuriuri/IndexTTS-2-vLLM',
-        help='使用的TTS模型 (默认: %(default)s)')
-    tts_parser.add_argument(
-        '-v',
-        '--voice',
-        default='pu',
-        help='使用的语音角色, 可用逗号分隔指定多个 (例如: pu,cat,candy)')
+    tts_parser.add_argument('-m',
+                            '--model',
+                            default='kusuriuri/IndexTTS-2-vLLM',
+                            help='使用的TTS模型 (默认: %(default)s)')
+    tts_parser.add_argument('-v',
+                            '--voice',
+                            default='pu',
+                            help='使用的语音角色, 可用逗号分隔指定多个 (例如: pu,cat,candy)')
     tts_parser.add_argument('--input-file', nargs='+', help='从一个或多个文件读取输入文本')
-    tts_parser.add_argument(
-        '-o',
-        '--output',
-        help='输出音频文件路径 (默认: 角色-输入文件名-时间.mp3)\n'
-        '如果指定了多个任务，文件名会自动附加角色和输入文件名。')
-    tts_parser.add_argument(
-        '-u',
-        '--api-url',
-        default="http://localhost:8001/audio/speech",
-        help='TTS服务的API地址 (默认: %(default)s)')
-    tts_parser.add_argument('--stdin',
-                            action='store_true',
-                            help='从标准输入读取文本')
+    tts_parser.add_argument('-o',
+                            '--output',
+                            help='输出音频文件路径 (默认: 角色-输入文件名-时间.mp3)\n'
+                            '如果指定了多个任务，文件名会自动附加角色和输入文件名。')
+    tts_parser.add_argument('-u',
+                            '--api-url',
+                            default="http://localhost:8001/audio/speech",
+                            help='TTS服务的API地址 (默认: %(default)s)')
+    tts_parser.add_argument('--stdin', action='store_true', help='从标准输入读取文本')
     tts_parser.add_argument('--play',
                             action='store_true',
                             help='生成后自动播放音频 (需要安装 mpv)')
@@ -263,11 +256,10 @@ def main():
     tts_parser.add_argument('--repeat-text',
                             action='store_true',
                             help='将文本中的每一行重复三遍')
-    tts_parser.add_argument(
-        '--concurrency',
-        type=int,
-        default=2,
-        help='同时处理的并发请求数 (默认: %(default)s)')
+    tts_parser.add_argument('--concurrency',
+                            type=int,
+                            default=2,
+                            help='同时处理的并发请求数 (默认: %(default)s)')
 
     args = parser.parse_args()
 
@@ -315,7 +307,9 @@ def main():
                                                       args.shuffle_text,
                                                       args.repeat_text)
                 if not processed_text:
-                    print(f"警告: 处理后文本为空，跳过任务 (角色: {voice}, 输入: {input_item['filename'] or 'stdin/arg'})", file=sys.stderr)
+                    print(
+                        f"警告: 处理后文本为空，跳过任务 (角色: {voice}, 输入: {input_item['filename'] or 'stdin/arg'})",
+                        file=sys.stderr)
                     continue
 
                 input_filename_for_naming = input_item['filename']
@@ -349,7 +343,10 @@ def main():
         print(f"总共 {len(tasks)} 个任务，使用 {args.concurrency} 个并发进行处理...")
 
         with ThreadPoolExecutor(max_workers=args.concurrency) as executor:
-            future_to_task = {executor.submit(text_to_speech, **task): task for task in tasks}
+            future_to_task = {
+                executor.submit(text_to_speech, **task): task
+                for task in tasks
+            }
 
             for i, future in enumerate(as_completed(future_to_task)):
                 task = future_to_task[future]
@@ -365,8 +362,9 @@ def main():
                     else:
                         print(message, file=sys.stderr)
                 except Exception as exc:
-                    print(f"任务 {os.path.basename(output_file)} 执行时发生意外错误: {exc}", file=sys.stderr)
-
+                    print(
+                        f"任务 {os.path.basename(output_file)} 执行时发生意外错误: {exc}",
+                        file=sys.stderr)
 
         # 5. Play generated audio
         if args.play and generated_files:
@@ -386,3 +384,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n程序已退出。")
         sys.exit(0)
+
