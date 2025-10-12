@@ -214,168 +214,167 @@ def main():
         description='TTS文本转语音命令行工具',
         formatter_class=argparse.RawTextHelpFormatter)
 
-    subparsers = parser.add_subparsers(dest='command',
-                                       required=True,
-                                       help='可用命令')
-
-    voices_parser = subparsers.add_parser('voices', help='获取所有可用的语音角色')
-    voices_parser.add_argument('-u',
-                               '--api-url',
-                               default="http://localhost:8001/audio/voices",
-                               help='API地址 (默认: %(default)s)')
-
-    tts_parser = subparsers.add_parser('tts', help='将文本转换为语音')
-    tts_parser.add_argument('input_text', nargs='?', help='输入文本内容')
-    tts_parser.add_argument('-m',
-                            '--model',
-                            default='kusuriuri/IndexTTS-2-vLLM',
-                            help='使用的TTS模型 (默认: %(default)s)')
-    tts_parser.add_argument('-v',
-                            '--voice',
-                            default='pu',
-                            help='使用的语音角色, 可用逗号分隔指定多个 (例如: pu,cat,candy)')
-    tts_parser.add_argument('--input-file', nargs='+', help='从一个或多个文件读取输入文本')
-    tts_parser.add_argument('-o',
-                            '--output',
-                            help='输出音频文件路径 (默认: 角色-输入文件名-时间.mp3)\n'
-                            '如果指定了多个任务，文件名会自动附加角色和输入文件名。')
-    tts_parser.add_argument('-u',
-                            '--api-url',
-                            default="http://localhost:8001/audio/speech",
-                            help='TTS服务的API地址 (默认: %(default)s)')
-    tts_parser.add_argument('--stdin', action='store_true', help='从标准输入读取文本')
-    tts_parser.add_argument('--play',
-                            action='store_true',
-                            help='生成后自动播放音频 (需要安装 mpv)')
-    tts_parser.add_argument('--no-compress',
-                            action='store_true',
-                            help='禁用音频压缩 (默认使用ffmpeg压缩)')
-    tts_parser.add_argument('--shuffle-text',
-                            action='store_true',
-                            help='为每个声音随机打乱文本行的顺序')
-    tts_parser.add_argument('--repeat-text',
-                            action='store_true',
-                            help='将文本中的每一行重复三遍')
-    tts_parser.add_argument('--concurrency',
-                            type=int,
-                            default=2,
-                            help='同时处理的并发请求数 (默认: %(default)s)')
+    parser.add_argument('input_text', nargs='?', default=None, help='输入文本内容')
+    parser.add_argument('--get-voices',
+                        action='store_true',
+                        help='获取所有可用的语音角色并退出')
+    parser.add_argument('-m',
+                        '--model',
+                        default='kusuriuri/IndexTTS-1.5-vLLM',
+                        help='使用的TTS模型 (默认: %(default)s)')
+    parser.add_argument('-v',
+                        '--voice',
+                        default='pu',
+                        help='使用的语音角色, 可用逗号分隔指定多个 (例如: pu,cat,candy)')
+    parser.add_argument('-f', '--input-file', nargs='+', help='从一个或多个文件读取输入文本')
+    parser.add_argument('-o',
+                        '--output',
+                        help='输出音频文件路径 (默认: 角色-输入文件名-时间.mp3)\n'
+                        '如果指定了多个任务，文件名会自动附加角色和输入文件名。')
+    parser.add_argument('-u',
+                        '--api-url',
+                        default="http://localhost:8001/audio/speech",
+                        help='TTS服务的API地址 (默认: %(default)s)')
+    parser.add_argument('--stdin', action='store_true', help='从标准输入读取文本')
+    parser.add_argument('--play',
+                        action='store_true',
+                        help='生成后自动播放音频 (需要安装 mpv)')
+    parser.add_argument('--no-compress',
+                        action='store_true',
+                        help='禁用音频压缩 (默认使用ffmpeg压缩)')
+    parser.add_argument('--shuffle-text',
+                        action='store_true',
+                        help='为每个声音随机打乱文本行的顺序')
+    parser.add_argument('--repeat-text',
+                        action='store_true',
+                        help='将文本中的每一行重复三遍')
+    parser.add_argument('--concurrency',
+                        type=int,
+                        default=2,
+                        help='同时处理的并发请求数 (默认: %(default)s)')
 
     args = parser.parse_args()
 
-    if args.command == 'voices':
-        voices = get_available_voices(args.api_url)
+    if args.get_voices:
+        from urllib.parse import urlparse, urlunparse
+        parsed_url = urlparse(args.api_url)
+        # Assuming the base URL structure is http://host:port/
+        voices_url = urlunparse(parsed_url._replace(path='/audio/voices'))
+        voices = get_available_voices(voices_url)
         print("可用的语音角色:")
         for voice in voices:
             print(f"  - {voice}")
         return
 
-    if args.command == 'tts':
-        # 1. Get voices
-        voices = [v.strip() for v in args.voice.split(',') if v.strip()]
-
-        # 2. Get inputs (list of dicts with 'filename' and 'content')
-        inputs = []
-        # Priority: input_file > input_text > stdin
-        if args.input_file:
-            for file_path in args.input_file:
-                content = read_file_content(file_path)
-                if content:
-                    inputs.append({'filename': file_path, 'content': content})
+    # If we are not getting voices, we must have some input text.
+    # 1. Get inputs (list of dicts with 'filename' and 'content')
+    inputs = []
+    # Priority: input_file > input_text > stdin
+    if args.input_file:
+        for file_path in args.input_file:
+            content = read_file_content(file_path)
+            if content:
+                inputs.append({'filename': file_path, 'content': content})
+    else:
+        input_text = None
+        if args.input_text is not None:
+            input_text = args.input_text
+        elif args.stdin or not sys.stdin.isatty():
+            input_text = sys.stdin.read()
         else:
-            input_text = None
-            if args.input_text is not None:
-                input_text = args.input_text
-            elif args.stdin or not sys.stdin.isatty():
-                input_text = sys.stdin.read()
-            else:
-                print("请输入要转换的文本 (空行后按 Ctrl+D 结束):")
-                input_text = sys.stdin.read()
+            # No positional arg, no file, not piped. This is an error.
+            parser.print_help(sys.stderr)
+            print("\n错误: 没有提供输入文本。", file=sys.stderr)
+            print("请提供文本作为参数, 或使用 --input-file, 或通过管道/--stdin 传入。",
+                  file=sys.stderr)
+            sys.exit(1)
 
-            if not input_text or not input_text.strip():
-                print("错误: 没有提供有效的输入文本", file=sys.stderr)
-                sys.exit(1)
-            inputs.append({'filename': None, 'content': input_text})
+        if not input_text or not input_text.strip():
+            print("错误: 输入文本为空。", file=sys.stderr)
+            sys.exit(1)
+        inputs.append({'filename': None, 'content': input_text})
 
-        # 3. Create generation tasks
-        tasks = []
-        total_tasks = len(voices) * len(inputs)
+    # 2. Get voices
+    voices = [v.strip() for v in args.voice.split(',') if v.strip()]
 
-        for voice in voices:
-            for input_item in inputs:
-                processed_text = process_text_content(input_item['content'],
-                                                      args.shuffle_text,
-                                                      args.repeat_text)
-                if not processed_text:
-                    print(
-                        f"警告: 处理后文本为空，跳过任务 (角色: {voice}, 输入: {input_item['filename'] or 'stdin/arg'})",
-                        file=sys.stderr)
-                    continue
+    # 3. Create generation tasks
+    tasks = []
+    total_tasks = len(voices) * len(inputs)
 
-                input_filename_for_naming = input_item['filename']
-                if args.output:
-                    base, ext = os.path.splitext(args.output)
-                    if total_tasks > 1:
-                        input_name_part = ""
-                        if input_filename_for_naming:
-                            input_name_part = f"-{os.path.splitext(os.path.basename(input_filename_for_naming))[0]}"
-                        output_file = f"{base}-{voice}{input_name_part}{ext or '.mp3'}"
-                    else:
-                        output_file = args.output
+    for voice in voices:
+        for input_item in inputs:
+            processed_text = process_text_content(input_item['content'],
+                                                  args.shuffle_text,
+                                                  args.repeat_text)
+            if not processed_text:
+                print(
+                    f"警告: 处理后文本为空，跳过任务 (角色: {voice}, 输入: {input_item['filename'] or 'stdin/arg'})",
+                    file=sys.stderr)
+                continue
+
+            input_filename_for_naming = input_item['filename']
+            if args.output:
+                base, ext = os.path.splitext(args.output)
+                if total_tasks > 1:
+                    input_name_part = ""
+                    if input_filename_for_naming:
+                        input_name_part = f"-{os.path.splitext(os.path.basename(input_filename_for_naming))[0]}"
+                    output_file = f"{base}-{voice}{input_name_part}{ext or '.mp3'}"
                 else:
-                    output_file = generate_default_output_filename(
-                        voice, input_filename_for_naming)
-
-                tasks.append({
-                    'model': args.model,
-                    'voice': voice,
-                    'input_text': processed_text,
-                    'output_file': output_file,
-                    'api_url': args.api_url
-                })
-
-        if not tasks:
-            print("没有要执行的任务。", file=sys.stderr)
-            sys.exit(0)
-
-        # 4. Execute tasks concurrently
-        generated_files = []
-        print(f"总共 {len(tasks)} 个任务，使用 {args.concurrency} 个并发进行处理...")
-
-        with ThreadPoolExecutor(max_workers=args.concurrency) as executor:
-            future_to_task = {
-                executor.submit(text_to_speech, **task): task
-                for task in tasks
-            }
-
-            for i, future in enumerate(as_completed(future_to_task)):
-                task = future_to_task[future]
-                output_file = task['output_file']
-                print(f"({i+1}/{len(tasks)}) ", end="")
-                try:
-                    success, message = future.result()
-                    if success:
-                        print(message)
-                        generated_files.append(output_file)
-                        if not args.no_compress:
-                            compress_audio(output_file)
-                    else:
-                        print(message, file=sys.stderr)
-                except Exception as exc:
-                    print(
-                        f"任务 {os.path.basename(output_file)} 执行时发生意外错误: {exc}",
-                        file=sys.stderr)
-
-        # 5. Play generated audio
-        if args.play and generated_files:
-            print("\n--- 开始播放生成的音频 ---")
-            if len(generated_files) == 1:
-                play_audio_interactive(generated_files[0])
+                    output_file = args.output
             else:
-                for i, file_path in enumerate(generated_files):
-                    print(f"\n({i+1}/{len(generated_files)}) ", end="")
-                    play_audio(file_path)
-            print("\n--- 所有音频播放完毕 ---")
+                output_file = generate_default_output_filename(
+                    voice, input_filename_for_naming)
+
+            tasks.append({
+                'model': args.model,
+                'voice': voice,
+                'input_text': processed_text,
+                'output_file': output_file,
+                'api_url': args.api_url
+            })
+
+    if not tasks:
+        print("没有要执行的任务。", file=sys.stderr)
+        sys.exit(0)
+
+    # 4. Execute tasks concurrently
+    generated_files = []
+    print(f"总共 {len(tasks)} 个任务，使用 {args.concurrency} 个并发进行处理...")
+
+    with ThreadPoolExecutor(max_workers=args.concurrency) as executor:
+        future_to_task = {
+            executor.submit(text_to_speech, **task): task
+            for task in tasks
+        }
+
+        for i, future in enumerate(as_completed(future_to_task)):
+            task = future_to_task[future]
+            output_file = task['output_file']
+            print(f"({i+1}/{len(tasks)}) ", end="")
+            try:
+                success, message = future.result()
+                if success:
+                    print(message)
+                    generated_files.append(output_file)
+                    if not args.no_compress:
+                        compress_audio(output_file)
+                else:
+                    print(message, file=sys.stderr)
+            except Exception as exc:
+                print(f"任务 {os.path.basename(output_file)} 执行时发生意外错误: {exc}",
+                      file=sys.stderr)
+
+    # 5. Play generated audio
+    if args.play and generated_files:
+        print("\n--- 开始播放生成的音频 ---")
+        if len(generated_files) == 1:
+            play_audio_interactive(generated_files[0])
+        else:
+            for i, file_path in enumerate(generated_files):
+                print(f"\n({i+1}/{len(generated_files)}) ", end="")
+                play_audio(file_path)
+        print("\n--- 所有音频播放完毕 ---")
 
 
 if __name__ == "__main__":
@@ -384,4 +383,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n程序已退出。")
         sys.exit(0)
-
