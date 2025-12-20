@@ -44,7 +44,7 @@ def get_available_voices(api_url="http://localhost:8001/audio/voices"):
         logger.debug(f"获取语音角色响应状态码: {response.status_code}")
         voices_data = response.json()
         return list(voices_data.keys())
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         print(f"获取语音角色失败: {str(e)}", file=sys.stderr)
         logger.error(f"获取语音角色失败: {str(e)}")
         sys.exit(1)
