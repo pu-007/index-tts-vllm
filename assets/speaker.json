@@ -1,5 +1,6 @@
 {
   "pu": ["assets/pu.wav"],
   "cat": ["assets/cat.wav"],
-  "candy": ["assets/candy.wav"]
+  "candy": ["assets/candy.wav"],
+  "wcat": ["assets/wcat.wav"]
 }
